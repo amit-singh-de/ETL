@@ -1,0 +1,86 @@
+version: '3.8'
+services:
+  spark:
+    image: docker.io/bitnami/spark:3.3.3
+    networks:
+      - my-network
+    volumes:
+      - ./data:/opt/data:rw
+      # - type: bind
+      #   source: ./data
+      #   target: /opt/data
+      - ./etl/postgresql-42.7.3.jar:/opt/driver/postgresql-42.7.3.jar   # Additional volume mapping for the JDBC driver
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    # user: root  # Run the container as root user
+    ports:
+      - '7077:7077'
+      - '18080:8080'
+  spark-worker:
+    image: docker.io/bitnami/spark:3.3.3
+    networks:
+      - my-network
+    deploy:
+      replicas: 1
+    volumes:
+      - ./data:/opt/data:rw
+      # - type: bind
+      #   source: ./data
+      #   target: /opt/data
+      - ./etl/postgresql-42.7.3.jar:/opt/driver/postgresql-42.7.3.jar
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    # user: root  # Run the container as root user
+  postgres:
+    image: docker.io/bitnami/postgresql:13
+    networks:
+      - my-network
+    environment:
+      POSTGRES_DB: warehouse
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - '5432:5432'
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile.etl
+    networks:
+      - my-network
+    volumes:
+      - ./etl:/app  # Assuming the ETL scripts are in a directory named 'etl'
+      - ./data:/app/data
+    depends_on:
+      - spark  # Ensure that Spark service is available before running ETL
+      - spark-worker # Ensure that Spark service is available before running ETL
+      - postgres  # Ensure that PostgreSQL service is available before running ETL
+    tty: True
+networks:
+  my-network:
+    driver: bridge
+
+
+# Running the pipeline
+# building images
+sudo docker compose build
+# running the pipeline
+docker compose run etl python etl/main.py \
+--source data/transaction.csv \
+--database warehouse \
+--table customers
+# checking postgres for data
+docker compose exec postgres psql --user postgres -d warehouse \
+  -c 'select * from customers limit 10'

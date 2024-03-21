@@ -1,0 +1,33 @@
+# Use the official Python 3.10 image as base image
+FROM python:3.10
+
+# Set environment variables for Java
+ENV JAVA_HOME /usr/lib/jvm/java-17-openjdk-arm64
+ENV PATH $JAVA_HOME/bin:$PATH
+
+# Install OpenJDK 11 manually
+RUN mkdir -p /usr/share/man/man1 && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-17-jre-headless && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy code and dependencies definition file
+COPY ./etl /app/
+
+# Install poetry
+RUN pip install poetry
+
+# Install dependencies using poetry
+RUN poetry config virtualenvs.create false && \
+    poetry install --no-root --no-interaction
+
+
+# Perform unit & Integration test on application
+# added a few seconds of Wait Time for any cleanup tasks or resource deallocations performed by the first test
+# after running the test the container will exist ,to stop that i have used tail -f /dev/null to keep the container alive
+
+CMD ["sh", "-c", "pytest -s ./tests/unit-test.py && sleep 5 && pytest -s ./tests/integration-test.py && tail -f /dev/null"]
+
