@@ -74,16 +74,24 @@ docker-compose run etl python etl/tests/integration-test.py
 - **Run Unit Test**:
 
     ```
-    docker-compose run etl python etl/tests/unit-test.py
+    docker-compose run etl pytest -s tests/unit-test.py
     ```
 
 - **Run Integration Test**:
 
     ```
-    docker-compose run etl python etl/tests/integration-test.py
+    docker-compose run etl pytest -s tests/integration-test.py
     ```
 - **Check for Integration Test data**:
 
     ```
-    docker compose run etl python etl/tests/integration-test.py
+    docker-compose exec postgres psql --user postgres -d warehouse \
+    -c 'select * from test_customers limit 10'
     ```
+## BONUS POINTS COVERED
+
+- **Used Poetry as a package manager for installing dependencies**
+
+- **Dockerized The Python Application**
+
+- **Created a Postgres Service to load data**
